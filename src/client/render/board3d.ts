@@ -58,6 +58,9 @@ export class BoardScene {
   private spec: GameSpec | null = null;
   private boardGroup = new THREE.Group();
   private overlayGroup = new THREE.Group();
+  private previewGroup = new THREE.Group();
+  private sideGroup = new THREE.Group();
+  private sideBands: THREE.Mesh[] = [];
   private marksGroup = new THREE.Group();
   private pathGroup = new THREE.Group();
   private diceGroup = new THREE.Group();
@@ -82,6 +85,7 @@ export class BoardScene {
   showMarks = true;
   showLabels = true;
   onPick: (target: { pieceId?: string; to?: number }) => void = () => {};
+  onHover: (target: { pieceId?: string; to?: number } | null) => void = () => {};
 
   private selectable = new Map<string, Move[]>();
   private targetMoves: Move[] = [];
@@ -132,16 +136,28 @@ export class BoardScene {
     this.scene.add(fill);
 
     // Piano di appoggio: panno opaco scuro (ombre di contatto)
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.MeshStandardMaterial({ color: 0x1d1b22, roughness: 0.95, metalness: 0 }));
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.MeshStandardMaterial({ color: 0xc7bdab, roughness: 0.97, metalness: 0 }));
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     this.scene.add(ground);
 
-    this.scene.add(this.boardGroup, this.overlayGroup, this.marksGroup, this.pathGroup, this.diceGroup);
+    this.scene.add(this.boardGroup, this.overlayGroup, this.marksGroup, this.pathGroup, this.diceGroup, this.previewGroup, this.sideGroup);
 
     const el = this.renderer.domElement;
     let down: { x: number; y: number } | null = null;
     el.addEventListener('pointerdown', (e) => (down = { x: e.clientX, y: e.clientY }));
+    let hoverKey = '';
+    el.addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'mouse' || down) return;
+      const t = this.hitTest(e.clientX, e.clientY);
+      const key = t ? `${t.pieceId}:${t.to ?? ''}` : '';
+      if (key !== hoverKey) {
+        hoverKey = key;
+        el.style.cursor = t ? 'pointer' : '';
+        this.onHover(t);
+      }
+    });
+    el.addEventListener('pointerleave', () => { hoverKey = ''; this.onHover(null); });
     el.addEventListener('pointerup', (e) => {
       if (!down) return;
       const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
@@ -159,7 +175,7 @@ export class BoardScene {
 
   setGame(spec: GameSpec) {
     this.spec = spec;
-    for (const g of [this.boardGroup, this.overlayGroup, this.marksGroup, this.pathGroup, this.diceGroup]) g.clear();
+    for (const g of [this.boardGroup, this.overlayGroup, this.marksGroup, this.pathGroup, this.diceGroup, this.previewGroup, this.sideGroup]) g.clear();
     this.pieceMeshes.clear();
     this.cellCenters.clear();
     this.pickables = [];
@@ -170,6 +186,7 @@ export class BoardScene {
     this.buildRuleMarks(spec);
     this.buildPieces(spec);
     this.buildDice(spec);
+    this.buildSideBands();
     this.resetView();
     this.dirty = true;
   }
@@ -408,15 +425,15 @@ export class BoardScene {
     this.dice = [];
     if (spec.ruleset.dice === 'binari-4') {
       // Tetraedri (spigolo stimato ~2 cm) con due vertici marcati da punti intarsiati.
-      const stone = this.std({ color: '#3a3733', roughness: 0.55, flatShading: true });
+      const stone = this.std({ color: '#2f2c29', roughness: 0.5, flatShading: true });
       const inlayMat = this.std({ color: PALETTE.shell, roughness: 0.45 });
       for (let i = 0; i < 4; i++) {
-        const geo = new THREE.TetrahedronGeometry(1.2);
+        const geo = new THREE.TetrahedronGeometry(1.4);
         const mesh = new THREE.Mesh(geo, stone);
         const verts = this.tetraVertices(geo);
         mesh.userData.verts = verts;
         for (const vi of [0, 1]) {
-          const dot = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 8), inlayMat);
+          const dot = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 10), inlayMat);
           dot.position.copy(verts[vi].clone().multiplyScalar(0.8));
           mesh.add(dot);
         }
@@ -437,7 +454,104 @@ export class BoardScene {
         this.dice.push(mesh);
       }
     }
+    // vassoio: area di lancio ben distinta dal panno
+    const trayW = 7.4, trayD = spec.ruleset.dice === 'binari-4' ? 9.6 : 6.4;
+    const home = this.diceHome(0), home2 = this.diceHome(this.dice.length - 1);
+    const tray = new THREE.Mesh(new THREE.BoxGeometry(trayW, 0.12, trayD), this.std({ color: 0xece5d6, roughness: 0.95 }));
+    tray.position.set((home.x + home2.x) / 2 + 0.6, 0.06, (home.z + home2.z) / 2);
+    tray.receiveShadow = true;
+    this.diceGroup.add(tray);
+    const rim = new THREE.Mesh(new THREE.BoxGeometry(trayW + 0.3, 0.06, trayD + 0.3), this.std({ color: 0x8a7a60, roughness: 0.9 }));
+    rim.position.copy(tray.position).setY(0.03);
+    this.diceGroup.add(rim);
+    this.diceRestY = 0.12;
     this.placeDiceRest();
+  }
+
+  private diceRestY = 0;
+
+  /** Fasce luminose sul pavimento lungo il lato del giocatore di turno. */
+  private buildSideBands() {
+    this.sideBands = [];
+    const c = document.createElement('canvas');
+    c.width = 16;
+    c.height = 128;
+    const g = c.getContext('2d')!;
+    const grad = g.createLinearGradient(0, 0, 0, 128);
+    grad.addColorStop(0, 'rgba(43,74,168,0.0)');
+    grad.addColorStop(0.35, 'rgba(43,74,168,0.55)');
+    grad.addColorStop(0.65, 'rgba(43,74,168,0.55)');
+    grad.addColorStop(1, 'rgba(43,74,168,0.0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 16, 128);
+    const tex = new THREE.CanvasTexture(c);
+    const isUr = this.spec!.board.id === 'ur-iii';
+    for (const owner of [0, 1] as Player[]) {
+      const side = owner === 0 ? 1 : -1;
+      const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false });
+      const band = new THREE.Mesh(new THREE.PlaneGeometry(this.boardLen + 3, isUr ? 4.6 : 4.2), mat);
+      band.rotation.x = -Math.PI / 2;
+      band.position.set(0, 0.015, side * (this.boardWid / 2 + (isUr ? 2.1 : 2.6)));
+      this.sideGroup.add(band);
+      this.sideBands.push(band);
+    }
+  }
+
+  /** Evidenzia il lato di chi deve muovere (null = nessuno). */
+  setActiveSide(p: Player | null) {
+    this.sideBands.forEach((b, i) => {
+      const mat = b.material as THREE.MeshBasicMaterial;
+      const target = p === i ? 0.6 : 0;
+      const from = mat.opacity;
+      if (this.opts.reducedMotion) mat.opacity = target;
+      else this.addTween(350, (k) => (mat.opacity = from + (target - from) * easeOut(k)));
+    });
+    this.dirty = true;
+  }
+
+  /** Anteprima di una mossa: percorso, pedina fantasma all'arrivo, pedina catturata evidenziata. */
+  private previewMove: Move | null = null;
+
+  setPreview(move: Move | null) {
+    this.previewMove = move;
+    this.previewGroup.clear();
+    this.pickables = this.pickables.filter((o) => !o.userData.ghost);
+    this.dirty = true;
+    const spec = this.spec;
+    if (!move || !spec || !this.lastState) return;
+    const isUr = spec.board.id === 'ur-iii';
+    const color = 0x2b4aa8;
+    const dotMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, depthWrite: false });
+    const start = move.enter ? 1 : move.from + 1;
+    for (let i = start; i < Math.min(move.to, spec.length + 1); i++) {
+      if (move.enter && i < move.to) continue; // l'ingresso salta direttamente alla casa d'arrivo
+      const p = this.posOnPath(spec, move.owner, i)!;
+      const d = new THREE.Mesh(new THREE.CircleGeometry(isUr ? 0.32 : 0.22, 20), dotMat);
+      d.rotation.x = -Math.PI / 2;
+      d.position.set(p.x, p.y + 0.05, p.z);
+      this.previewGroup.add(d);
+    }
+    const dest = move.exit ? this.exitMarker(move.owner) : this.posOnPath(spec, move.owner, move.to)!;
+    const src = this.pieceMeshes.get(move.pieceId) as THREE.Mesh;
+    const ghostMat = new THREE.MeshStandardMaterial({ color: 0x9fb4f0, transparent: true, opacity: 0.55, roughness: 0.5, depthWrite: false });
+    const ghost = new THREE.Mesh(src.geometry, ghostMat);
+    ghost.position.copy(dest);
+    if (move.exit) ghost.position.y = 0.02;
+    ghost.userData = { ghost: true, targetTo: move.to, targetPiece: move.pieceId };
+    this.previewGroup.add(ghost);
+    this.pickables.push(ghost);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(isUr ? 1.3 : 0.9, isUr ? 1.55 : 1.08, 48), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false, side: THREE.DoubleSide }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(dest.x, dest.y + 0.06, dest.z);
+    this.previewGroup.add(ring);
+    if (move.capture) {
+      const v = this.pieceMeshes.get(move.capture)!;
+      const x = new THREE.Mesh(new THREE.RingGeometry(isUr ? 1.3 : 0.9, isUr ? 1.6 : 1.12, 48), new THREE.MeshBasicMaterial({ color: 0xa8452d, transparent: true, opacity: 0.95, depthWrite: false, side: THREE.DoubleSide }));
+      x.rotation.x = -Math.PI / 2;
+      x.position.set(v.position.x, v.position.y + 0.07, v.position.z);
+      this.previewGroup.add(x);
+      ghost.position.y += (v.userData.h ?? 0.6) + 0.05;
+    }
   }
 
   private stickFace(v: number | string) {
@@ -482,14 +596,14 @@ export class BoardScene {
   private diceHome(i: number): THREE.Vector3 {
     const n = this.dice.length;
     const x = this.boardLen / 2 + 4.5;
-    const spacing = this.spec?.ruleset.dice === 'binari-4' ? 2.6 : 1.6;
-    return new THREE.Vector3(x + (this.spec?.ruleset.dice === 'binari-4' ? (i % 2) * 2.6 : 0), 0, (i - (n - 1) / 2) * spacing);
+    const spacing = this.spec?.ruleset.dice === 'binari-4' ? 2.1 : 1.8;
+    return new THREE.Vector3(x + (this.spec?.ruleset.dice === 'binari-4' ? (i % 2) * 3 : 0), 0, (i - (n - 1) / 2) * spacing);
   }
 
   private placeDiceRest() {
     this.dice.forEach((d, i) => {
       const p = this.diceHome(i);
-      d.position.set(p.x, this.spec?.ruleset.dice === 'binari-4' ? 0.4 : 0.4, p.z);
+      d.position.set(p.x, (this.spec?.ruleset.dice === 'binari-4' ? 1.4 / 3 : 0.4) + this.diceRestY, p.z);
       d.quaternion.copy(this.restQuat(i, 0, i * 1.7));
     });
     this.dirty = true;
@@ -607,7 +721,7 @@ export class BoardScene {
         const home = this.diceHome(it.idx);
         const yaw = Math.random() * Math.PI * 2;
         const endQ = this.restQuat(it.idx, it.value, yaw % 1);
-        const restY = binary ? 1.2 / 3 : 0.4;
+        const restY = (binary ? 1.4 / 3 : 0.4) + this.diceRestY;
         const end = new THREE.Vector3(home.x + (Math.random() - 0.5) * 1.2, restY, home.z + (Math.random() - 0.5) * 0.8);
         const start = new THREE.Vector3(end.x - 6, 7, end.z + (Math.random() - 0.5) * 3);
         const spinAxis = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
@@ -674,8 +788,8 @@ export class BoardScene {
       this.dirty = true;
       return;
     }
-    const ringGeo = new THREE.RingGeometry(0.95, 1.15, 40);
-    const gold = new THREE.MeshBasicMaterial({ color: 0xd2ad63, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide });
+    const ringGeo = new THREE.RingGeometry(0.98, 1.22, 48);
+    const gold = new THREE.MeshBasicMaterial({ color: 0x2b4aa8, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide });
     const target = new THREE.MeshBasicMaterial({ color: 0x9fb7ff, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide });
     const scale = spec.board.id === 'ur-iii' ? 1.25 : 0.82;
     const where = this.lastState ? this.computeTargets(spec, this.lastState) : new Map<string, THREE.Vector3>();
@@ -730,6 +844,12 @@ export class BoardScene {
   }
 
   private pick(clientX: number, clientY: number) {
+    const t = this.hitTest(clientX, clientY);
+    if (t) this.onPick(t);
+  }
+
+  /** Che cosa c'è sotto il puntatore: pedina o destinazione evidenziata. */
+  private hitTest(clientX: number, clientY: number): { pieceId?: string; to?: number } | null {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     const ray = new THREE.Raycaster();
@@ -739,23 +859,44 @@ export class BoardScene {
       let o: THREE.Object3D | null = h.object;
       while (o && o.userData.pieceId === undefined && o.userData.targetTo === undefined && o.userData.cell === undefined) o = o.parent;
       if (!o) continue;
-      if (o.userData.targetTo !== undefined) return this.onPick({ pieceId: o.userData.targetPiece, to: o.userData.targetTo });
-      if (o.userData.pieceId) return this.onPick({ pieceId: o.userData.pieceId });
+      if (o.userData.targetTo !== undefined) return ({ pieceId: o.userData.targetPiece, to: o.userData.targetTo });
+      if (o.userData.pieceId) return ({ pieceId: o.userData.pieceId });
       if (o.userData.cell && this.spec && this.lastState) {
         // clic su una casella: se contiene una pedina, equivale a cliccarla; altrimenti destinazione di una mossa selezionata
         const occ = this.lastState.pieces.find((p) => p.pos >= 1 && p.pos <= this.spec!.length && this.spec!.route.paths[p.owner][p.pos - 1] === o!.userData.cell);
-        if (occ) return this.onPick({ pieceId: occ.id });
+        if (occ) return ({ pieceId: occ.id });
         const m = this.targetMoves.find((mv) => mv.to <= this.spec!.length && this.spec!.route.paths[mv.owner][mv.to - 1] === o!.userData.cell);
-        if (m) return this.onPick({ pieceId: m.pieceId, to: m.to });
+        if (m) return ({ pieceId: m.pieceId, to: m.to });
+        // destinazione dell'anteprima (casella vuota)
+        const pm = this.previewMove;
+        if (pm && !pm.exit && this.spec!.route.paths[pm.owner][pm.to - 1] === o!.userData.cell) return { pieceId: pm.pieceId, to: pm.to };
       }
     }
+    return null;
   }
 
   // ------------------------------------------------------------------ camera
 
   setOrientation(p: Player) {
+    if (p === this.orientation) return;
     this.orientation = p;
-    this.resetView();
+    if (this.opts.reducedMotion) return this.resetView();
+    // ruota la camera attorno al centro della tavola invece di saltare
+    const from = this.camera.position.clone().sub(this.controls.target);
+    const startAngle = Math.atan2(from.x, from.z);
+    const radius = Math.hypot(from.x, from.z);
+    const y = from.y;
+    const endAngle = startAngle + Math.PI;
+    this.addTween(650, (k) => {
+      const a = startAngle + (endAngle - startAngle) * easeOut(k);
+      this.camera.position.set(this.controls.target.x + Math.sin(a) * radius, this.controls.target.y + y, this.controls.target.z + Math.cos(a) * radius);
+      this.camera.lookAt(this.controls.target);
+      this.controls.update();
+    });
+  }
+
+  get currentOrientation(): Player {
+    return this.orientation;
   }
 
   /** Su schermi verticali la tavola viene mostrata con l'asse lungo in verticale. */
@@ -768,14 +909,14 @@ export class BoardScene {
     const vfov = (this.camera.fov * Math.PI) / 180;
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * aspect);
     if (this.portrait) return Math.max((this.boardLen + 22) / 2 / Math.tan(vfov / 2), (this.boardWid + 11) / 2 / Math.tan(hfov / 2)) * 0.9;
-    const span = this.boardLen + 14;
+    const span = this.boardLen + 20;
     return Math.max((span / 2) / Math.tan(hfov / 2), (this.boardWid + 10) / 2 / Math.tan(vfov / 2)) * 0.95;
   }
 
   resetView() {
     const dist = this.fitDistance();
     const side = this.orientation === 0 ? 1 : -1;
-    const target = new THREE.Vector3(2.2, 0, 0);
+    const target = new THREE.Vector3(5, 0, 0);
     this.controls.target.copy(target);
     const tall = this.spec?.board.id === 'tarda';
     if (this.portrait) {

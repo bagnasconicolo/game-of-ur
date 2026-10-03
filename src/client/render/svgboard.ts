@@ -43,15 +43,16 @@ export function boardSvg(boardId: BoardId, opts: SvgOptions = {}) {
     .path0{fill:none;stroke:#2f4aa0;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
     .path1{fill:none;stroke:#b5523b;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:6 3}
     .num{font:600 10px sans-serif;fill:#1b150f}
-    .bg{fill:${boardId === 'ur-iii' ? '#151210' : '#b48d5e'}}
+    .bg-ur-iii{fill:#151210}
+    .bg-tarda{fill:#b48d5e}
   `));
   const center = (row: number, col: number) => ({ x: pad + col * CELL + CELL / 2, y: pad + row * CELL + CELL / 2 });
   const g = el('g', { class: boardId === 'ur-iii' ? 'ur' : 'late' });
   svg.append(g);
-  if (boardId === 'tarda') g.append(el('rect', { class: 'bg', x: pad - 6, y: pad - 6, width: b.cols * CELL + 12, height: b.rows * CELL + 12, rx: 3 }));
+  if (boardId === 'tarda') g.append(el('rect', { class: `bg-${boardId}`, x: pad - 6, y: pad - 6, width: b.cols * CELL + 12, height: b.rows * CELL + 12, rx: 3 }));
   else {
     for (const blk of [[0, 3, 0, 2], [4, 5, 1, 1], [6, 7, 0, 2]]) {
-      g.append(el('rect', { class: 'bg', x: pad + blk[0] * CELL - 5, y: pad + blk[2] * CELL - 5, width: (blk[1] - blk[0] + 1) * CELL + 10, height: (blk[3] - blk[2] + 1) * CELL + 10, rx: 3 }));
+      g.append(el('rect', { class: `bg-${boardId}`, x: pad + blk[0] * CELL - 5, y: pad + blk[2] * CELL - 5, width: (blk[1] - blk[0] + 1) * CELL + 10, height: (blk[3] - blk[2] + 1) * CELL + 10, rx: 3 }));
     }
   }
   const physical = new Set(DECORATIONS[boardId].physicalRosettes);
@@ -140,7 +141,7 @@ export class SvgBoardView {
         // forma diversa oltre al colore: cerchio pieno vs anello
         if (owner === 1) g.append(el('circle', { cx: x, cy: y, r: 5, fill: 'none', stroke: '#efe4cf', 'stroke-width': 1.5 }));
         else g.append(el('circle', { cx: x, cy: y, r: 3, fill: '#2f4aa0' }));
-        if (spec.ruleset.advanced) g.append(el('text', { x, y: y - 14, 'text-anchor': 'middle', style: 'font:700 8px sans-serif;fill:#f0e7d7' }, `${kindOf(spec, p.kind).entryThrow}`));
+        if (spec.ruleset.advanced) g.append(el('text', { x, y: y - 14, 'text-anchor': 'middle', style: 'font:700 8px sans-serif;fill:#231c15' }, `${kindOf(spec, p.kind).entryThrow}`));
         g.addEventListener('click', () => this.onPick({ pieceId: p.id }));
         this.layer.append(g);
       }

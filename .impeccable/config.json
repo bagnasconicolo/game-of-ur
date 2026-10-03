@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "src/client/index.html"
+        ],
+        "createdAt": "2026-10-03T10:58:40.937Z",
+        "reason": "user requested a lighter background in chat; palette derived from the shell/limestone of the BM and Met artifacts"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "src/client/index.html"
+        ],
+        "createdAt": "2026-10-03T10:58:40.967Z",
+        "reason": "agent: only positioned child of body is the off-screen skip link; overflow-x guards horizontal scroll on mobile"
+      }
+    ]
+  }
+}

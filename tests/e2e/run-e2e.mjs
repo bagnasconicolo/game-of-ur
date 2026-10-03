@@ -63,12 +63,16 @@ async function register(p, u) {
 async function playMyTurns(p, maxActions = 400) {
   for (let i = 0; i < maxActions; i++) {
     if (await p.locator('.notice', { hasText: 'Vince' }).count()) return true;
-    const roll = p.locator('.dice-panel button.gold:not([disabled])');
+    const roll = p.locator('.hud .btn.gold:not([disabled])');
     const move = p.locator('[data-move="0"]');
-    const conv = p.locator('.dice-panel button', { hasText: 'conversione' });
+    const conv = p.locator('.hud .btn', { hasText: 'Converti' });
     if (await roll.count()) { await roll.click(); }
-    else if (await move.count()) { await move.click(); }
-    else if (await conv.count() && !(await conv.isDisabled())) { await conv.click(); }
+    else if (await move.count()) {
+      // anteprima, poi conferma esplicita
+      await move.click();
+      await p.locator('.hud .btn.primary', { hasText: 'Conferma' }).click();
+    }
+    else if (await conv.count()) { await conv.click(); }
     else return false;
     await p.waitForTimeout(60);
   }
