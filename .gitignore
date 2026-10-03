@@ -1,0 +1,7 @@
+node_modules
+dist
+data/*.db*
+.env
+test-results
+tests/e2e/out
+.DS_Store

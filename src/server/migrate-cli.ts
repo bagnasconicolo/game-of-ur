@@ -1,0 +1,10 @@
+import { DatabaseSync } from 'node:sqlite';
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { migrate } from './db.ts';
+const path = process.env.DB_PATH ?? 'data/ur.db';
+mkdirSync(dirname(path), { recursive: true });
+const db = new DatabaseSync(path);
+const applied = migrate(db);
+console.log(applied.length ? `Migrazioni applicate: ${applied.join(', ')}` : 'Database già aggiornato.');
+db.close();

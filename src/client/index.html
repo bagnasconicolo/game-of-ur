@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="description" content="Il Gioco reale di Ur e il Gioco delle Venti Caselle: ricostruzione 3D, regolamenti documentati, partite locali e online." />
+    <title>Gioco reale di Ur</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Vai al contenuto</a>
+    <header class="topbar">
+      <a class="brand" href="#/gioca" aria-label="Gioco reale di Ur, home">
+        <svg viewBox="0 0 32 32" aria-hidden="true" class="brand-mark"><use href="#rosetta-icon" /></svg>
+        <span>Gioco reale di Ur</span>
+      </a>
+      <nav class="mainnav" aria-label="Sezioni">
+        <a href="#/gioca" data-nav="gioca">Gioca</a>
+        <a href="#/amici" data-nav="amici">Amici <span class="badge" id="friends-badge" hidden></span></a>
+        <a href="#/classifica" data-nav="classifica">Classifica</a>
+        <a href="#/profilo" data-nav="profilo">Profilo</a>
+        <a href="#/storia" data-nav="storia">Storia e regole</a>
+      </nav>
+      <div class="account" id="account"></div>
+    </header>
+    <div class="netbar" id="netbar" role="status" aria-live="polite" hidden></div>
+    <main id="main" tabindex="-1"></main>
+    <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <symbol id="rosetta-icon" viewBox="0 0 32 32">
+        <g fill="none" stroke="currentColor" stroke-width="1.6">
+          <circle cx="16" cy="16" r="2.6" />
+          <path d="M16 13.4 C14 9 14 6 16 3 C18 6 18 9 16 13.4Z" />
+          <path d="M16 18.6 C14 23 14 26 16 29 C18 26 18 23 16 18.6Z" />
+          <path d="M13.4 16 C9 14 6 14 3 16 C6 18 9 18 13.4 16Z" />
+          <path d="M18.6 16 C23 14 26 14 29 16 C26 18 23 18 18.6 16Z" />
+          <path d="M14.2 14.2 C10.5 11 9 8.5 8.2 8.2 C8.5 9 11 10.5 14.2 14.2Z" />
+          <path d="M17.8 17.8 C21.5 21 23 23.5 23.8 23.8 C23.5 23 21 21.5 17.8 17.8Z" />
+          <path d="M17.8 14.2 C21 10.5 23.5 9 23.8 8.2 C23 8.5 21.5 11 17.8 14.2Z" />
+          <path d="M14.2 17.8 C11 21.5 8.5 23 8.2 23.8 C9 23.5 10.5 21 14.2 17.8Z" />
+        </g>
+      </symbol>
+    </svg>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
